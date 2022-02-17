@@ -376,7 +376,7 @@ def parse_arguments(args):
     parser.add_argument("--scale", type=float, default="0.0002", help="How much meters does one bit represent in the input data.")
     return parser.parse_known_args(args)
 
-import time
+# import time
 
 if __name__ == '__main__':
     ###Initial Pytorch model###
@@ -428,8 +428,8 @@ if __name__ == '__main__':
         cv2.imwrite('src/ROS-dndb-node/examples/input/depth/%s.png' % rospy.get_time(), depth_img)
         cv2.imwrite('src/ROS-dndb-node/examples/input/rgb/%s.png' % rospy.get_time(), color_img)
 
-        time_start_clock = time.clock()
-        time_start_time = time.time()
+        # time_start_clock = time.clock()
+        # time_start_time = time.time()
 
         dndb_depthmap = run_model(
         args.model_path,
@@ -438,10 +438,10 @@ if __name__ == '__main__':
         scale = args.scale
         )
 
-        time_end_clock = time.clock()
-        time_end_time = time.time()
+        # time_end_clock = time.clock()
+        # time_end_time = time.time()
 
-        print("\n---CPU clock: ", time_end_clock - time_start_clock, "\t system time: ", time_end_time - time_start_time, " ---\n")
+        # print("\n---CPU clock: ", time_end_clock - time_start_clock, "\t system time: ", time_end_time - time_start_time, " ---\n")
 
         cv2.imwrite('src/ROS-dndb-node/examples/output/%s.png' % rospy.get_time(), dndb_depthmap)
         video_streamer.publish(dndb_depthmap)
