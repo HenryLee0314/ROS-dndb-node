@@ -331,21 +331,26 @@ def run_model(model_path: str, input: np.ndarray, device: str, scale: float):
 
     masked_predicted_depth = predicted_depth * mask
 
+    cv2.imwrite('src/ROS-dndb-node/examples/output/%s_denoised.png' % rospy.get_time(), return_depth(masked_predicted_depth, 1/scale))# masked_predicted_depth)
+
     DB_predicted = deblur_model(masked_predicted_depth, depthmap)
 
     DB_predicted = DB_predicted * mask
 
-    DB_predicted = DB_predicted.detach().cpu().numpy()
-    depthmap = depthmap.detach().cpu().numpy()
-    mask = mask.detach().cpu().numpy()
+    #clamp_mask = DB_predicted <= 0.1 or DB_predicted >= 6.5
+    DB_predicted = torch.where(DB_predicted <= 0.1, depthmap, DB_predicted)
+    DB_predicted = torch.where(DB_predicted >= 6.5, depthmap, DB_predicted)
+    #DB_predicted = DB_predicted.detach().cpu().numpy()
+    #depthmap = depthmap.detach().cpu().numpy()
+    #mask = mask.detach().cpu().numpy()
 
-    for i in range(360):
-        for j in range(640):
-            if DB_predicted[0,0,i,j] <= 0.1 or DB_predicted[0,0,i,j] >= 6.5:
-                DB_predicted[0,0,i,j] = depthmap[0,0,i,j]
+    #for i in range(360):
+    #    for j in range(640):
+    #        if DB_predicted[0,0,i,j] <= 0.1 or DB_predicted[0,0,i,j] >= 6.5:
+    #            DB_predicted[0,0,i,j] = depthmap[0,0,i,j]
 
-    DB_predicted = torch.from_numpy(DB_predicted.reshape(1, 1, 360, 640)).type(torch.float32).to(device)
-    depthmap = torch.from_numpy(depthmap.reshape(1, 1, 360, 640)).type(torch.float32).to(device)
+    #DB_predicted = torch.from_numpy(DB_predicted.reshape(1, 1, 360, 640)).type(torch.float32).to(device)
+    #depthmap = torch.from_numpy(depthmap.reshape(1, 1, 360, 640)).type(torch.float32).to(device)
         
     # save denoising depthmap
     # output_file = os.path.join(output_path, filename + "_denoised." + extension)
@@ -368,9 +373,10 @@ def parse_arguments(args):
     parser.add_argument("--pointclouds", type=bool, default=False, help = "Save original and denoised pointclouds for RealSense input.")
     parser.add_argument("--autoencoder", type=bool, default=False, help = "Set model to autoencoder mode (i.e. trained without multi-view supervision, but as a depth map autoencoder).")
     parser.add_argument("-g","--gpu", type=str, default="0", help="The ids of the GPU(s) that will be utilized. (e.g. 0 or 0,1, or 0,2). Use -1 for CPU.")
-    parser.add_argument("--scale", type=float, default="0.001", help="How much meters does one bit represent in the input data.")
+    parser.add_argument("--scale", type=float, default="0.0002", help="How much meters does one bit represent in the input data.")
     return parser.parse_known_args(args)
 
+import time
 
 if __name__ == '__main__':
     ###Initial Pytorch model###
@@ -422,12 +428,20 @@ if __name__ == '__main__':
         cv2.imwrite('src/ROS-dndb-node/examples/input/depth/%s.png' % rospy.get_time(), depth_img)
         cv2.imwrite('src/ROS-dndb-node/examples/input/rgb/%s.png' % rospy.get_time(), color_img)
 
+        time_start_clock = time.clock()
+        time_start_time = time.time()
+
         dndb_depthmap = run_model(
         args.model_path,
         input = depth_img,
         device = device,
         scale = args.scale
         )
+
+        time_end_clock = time.clock()
+        time_end_time = time.time()
+
+        print("\n---CPU clock: ", time_end_clock - time_start_clock, "\t system time: ", time_end_time - time_start_time, " ---\n")
 
         cv2.imwrite('src/ROS-dndb-node/examples/output/%s.png' % rospy.get_time(), dndb_depthmap)
         video_streamer.publish(dndb_depthmap)
