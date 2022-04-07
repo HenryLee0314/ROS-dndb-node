@@ -373,7 +373,7 @@ def parse_arguments(args):
     parser.add_argument("--pointclouds", type=bool, default=False, help = "Save original and denoised pointclouds for RealSense input.")
     parser.add_argument("--autoencoder", type=bool, default=False, help = "Set model to autoencoder mode (i.e. trained without multi-view supervision, but as a depth map autoencoder).")
     parser.add_argument("-g","--gpu", type=str, default="0", help="The ids of the GPU(s) that will be utilized. (e.g. 0 or 0,1, or 0,2). Use -1 for CPU.")
-    parser.add_argument("--scale", type=float, default="0.0002", help="How much meters does one bit represent in the input data.")
+    parser.add_argument("--scale", type=float, default="0.001", help="How much meters does one bit represent in the input data.")
     return parser.parse_known_args(args)
 
 # import time
