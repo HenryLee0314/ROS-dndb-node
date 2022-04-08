@@ -48,9 +48,11 @@ class VideoStreamer:
         self.intrin_retrieved = False
         self.color_image = np.zeros([480,640,3], dtype=np.uint8)
         self.depth_image = np.zeros([480,640], dtype=np.uint8)
+        self.color_header = 0
+        self.depth_header = 0
 
     def read(self):
-        return (self.color_image, self.depth_image)
+        return (self.color_image, self.depth_image, self.color_header, self.depth_header)
 
     def colour_callback(self, msg):
         if not self.colour_retrieved:
@@ -58,12 +60,14 @@ class VideoStreamer:
             # inverse rgb to bgr
             im = im[:,:,::-1]
             self.color_image = im
+            self.color_header = msg.header
             self.colour_retrieved = True
     
     def depth_callback(self, msg):
         if not self.depth_retrieved:
             im = ros_numpy.numpify(msg)
             self.depth_image = im
+            self.depth_header = msg.header
             self.depth_retrieved = True
 
     def intrin_callback(self, cameraInfo):
@@ -88,9 +92,10 @@ class VideoStreamer:
         self.depth_retrieved = False
         self.intrin_retrieved = False
 
-    def publish(self, image):
+    def publish(self, image, header):
         # Convert image array to smassage from sensor_msgs
         img_msg = ros_numpy.msgify(Image, image, encoding='mono16')
+        img_msg.header = header
         self._pub.publish(img_msg)
 
 class Mish(nn.Module):
@@ -301,7 +306,7 @@ class DB(torch.nn.Module):
 __WIDTH__ = 640
 __HEIGHT__ = 360
 
-def run_model(model_path: str, input: np.ndarray, device: str, scale: float):
+def run_model(model_path: str, input: np.ndarray, device: str, scale: float, frameid: float):
     uv_grid_t = create_image_domain_grid(model_params['width'], model_params['height'])
 
     if args.pointclouds:
@@ -331,7 +336,7 @@ def run_model(model_path: str, input: np.ndarray, device: str, scale: float):
 
     masked_predicted_depth = predicted_depth * mask
 
-    cv2.imwrite('src/ROS-dndb-node/examples/output/%s_denoised.png' % rospy.get_time(), return_depth(masked_predicted_depth, 1/scale))# masked_predicted_depth)
+    cv2.imwrite('%s%s_denoised.png' % (path3, frameid), return_depth(masked_predicted_depth, 1/scale))# masked_predicted_depth)
 
     DB_predicted = deblur_model(masked_predicted_depth, depthmap)
 
@@ -376,9 +381,18 @@ def parse_arguments(args):
     parser.add_argument("--scale", type=float, default="0.001", help="How much meters does one bit represent in the input data.")
     return parser.parse_known_args(args)
 
-# import time
+import time
+
+from signal import signal, SIGINT
+from sys import exit
+
+def handler(signal_received, frame):
+    print('SIGINT or CTRL-C detected. Exiting...')
+    exit(0)
 
 if __name__ == '__main__':
+    signal(SIGINT, handler)
+
     ###Initial Pytorch model###
     args, unknown = parse_arguments(sys.argv)
     gpus = [int(id) for id in args.gpu.split(',') if int(id) >= 0]
@@ -423,10 +437,26 @@ if __name__ == '__main__':
     rospy.Subscriber("/d400/aligned_depth_to_color/image_raw", Image, video_streamer.depth_callback)
     # rospy.Subscriber("/d400/depth/camera_info", CameraInfo, video_streamer.intrin_callback)
 
+    start_time = time.time()
+    start_time_string = time.strftime("%Y%m%d_%H%M%S/", time.localtime())
+    path = os.path.join("images/", start_time_string)
+    path1 = os.path.join(path, "input/rgb/")
+    path2 = os.path.join(path, "input/depth/")
+    path3 = os.path.join(path, "output/")
+    os.makedirs(path1)
+    os.makedirs(path2)
+    os.makedirs(path3)
+
     while True:
-        color_img, depth_img = video_streamer.read()
-        cv2.imwrite('src/ROS-dndb-node/examples/input/depth/%s.png' % rospy.get_time(), depth_img)
-        cv2.imwrite('src/ROS-dndb-node/examples/input/rgb/%s.png' % rospy.get_time(), color_img)
+        color_img, depth_img, color_header, depth_header = video_streamer.read()
+
+        current_time = time.time()
+        if ((current_time - start_time) < 5.0): continue
+
+        # print("\n--- Color: ", color_header.stamp, "\t Depth: ", depth_header.stamp, " ---\n")
+
+        cv2.imwrite('%s%s.png' % (path2, depth_header.stamp), depth_img)
+        cv2.imwrite('%s%s.png' % (path1, color_header.stamp), color_img)
 
         # time_start_clock = time.clock()
         # time_start_time = time.time()
@@ -435,7 +465,8 @@ if __name__ == '__main__':
         args.model_path,
         input = depth_img,
         device = device,
-        scale = args.scale
+        scale = args.scale,
+        frameid = depth_header.stamp
         )
 
         # time_end_clock = time.clock()
@@ -443,9 +474,9 @@ if __name__ == '__main__':
 
         # print("\n---CPU clock: ", time_end_clock - time_start_clock, "\t system time: ", time_end_time - time_start_time, " ---\n")
 
-        cv2.imwrite('src/ROS-dndb-node/examples/output/%s.png' % rospy.get_time(), dndb_depthmap)
-        video_streamer.publish(dndb_depthmap)
-        rospy.loginfo('A DNDB depthmap just published on DNDB_depth topic...')
+        cv2.imwrite('%s%s.png' % (path3, depth_header.stamp), dndb_depthmap)
+        video_streamer.publish(dndb_depthmap, depth_header)
+        # rospy.loginfo("DNDB depthmap [%s] published on DNDB_depth topic..." % depth_header.stamp)
         video_streamer.set_not_retrieved()
 
         # garbage collection

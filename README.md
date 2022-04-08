@@ -41,10 +41,13 @@ This is a ROS node project which is obtained a denoised & deblurred (DNDB) model
 * Ensure ros_dndb_node.py is executable. Type `chmod +x ~/your_catkin_ws/src/ROS-dndb-node/ros_dndb_node.py`
 * To perform depth denoise & deblur manipulation straight from a D435/D435i camera attached to a USB port:
   * Type `roslaunch realsense2_camera rs_d400_and_t265.launch`
-  * In a new terminal window, go to your ROS work space, type<br />
-    `catkin_make`<br />
-    `source devel/setup.bash`<br />
-    `rosrun ROS-dndb-node ros_dndb_node.py`
+  * In a new terminal window, copy `start_dndb_print.sh` and `start_dndb.sh` to your ROS work space, type<br />
+    <del>catkin_make</del><br />
+    <del>source devel/setup.bash</del><br />
+    <del>rosrun ROS-dndb-node ros_dndb_node.py</del><br />
+    `start_dndb_print.sh` will start the camera and start “ros_dndb_node_print.py” <br />
+    `start_dndb.sh` will start the camera and start “ros_dndb_node_noprint.py” <br />
+    (With the 2 script files, users don’t have to start the Realsense camera separately with "roslaunch realsense2_camera rs_d400_and_t265.launch”. The 2 script files will automatically start the camera and start the dndb node.)
   * If there are any complications, make sure the topic this node is subscribed to has the same name. Type `rostopic list` to see current topics published
 * To find the published depth map, in a new terminal type `rostopic echo /DNDB_depth` or find both retrieved and published imges/depth map in your directory `your_katkin_ws/src/ROS-dndb-node/exampes`
-* Press `Ctrl + c` or `Ctrl + z` to stop
+* Press `Ctrl + c` to stop
